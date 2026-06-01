@@ -56,6 +56,15 @@ npm run preview    # 预览构建产物
 
 ## 安装加载
 
+### 从 Release 压缩包安装
+
+1. 下载 `jijiao-tools-1.0.6.zip`
+2. 打开 `chrome://extensions`（Edge 为 `edge://extensions`）
+3. 开启「开发者模式」
+4. 将 `jijiao-tools-1.0.6.zip` 拖入扩展管理页面自动安装
+
+### 本地开发加载
+
 1. 打开 `chrome://extensions`（Edge 为 `edge://extensions`）
 2. 开启「开发者模式」
 3. 点击「加载已解压的扩展」，选择 `dist/` 目录
