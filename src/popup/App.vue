@@ -73,7 +73,7 @@ async function clearConsole() {
         <span class="logo">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>
         </span>
-        <h1 class="brand-name">SwiftFlow</h1>
+        <h1 class="brand-name">JiJiaoTools</h1>
       </div>
       <div class="top-actions">
         <button class="icon-btn" type="button" aria-label="帮助">
