@@ -48,6 +48,53 @@ function num(sel: string): number {
 }
 
 const VIDEO_ID = '#video video'
+const QUESTION_SEL = '#questionDiv'
+const QUESTION_OPTION_SEL = '#questionDiv .m-question-lst li label'
+const QUESTION_SUBMIT_SEL = '#questionDiv .u-main-btn'
+const ANSWER_RETRY_MS = 800
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+async function answerQuestion(box: Element) {
+  const s = await getState()
+  if (s.status !== 'running' || !document.contains(box)) return
+
+  const labels = Array.from(document.querySelectorAll<HTMLLabelElement>(QUESTION_OPTION_SEL))
+  const submit = document.querySelector<HTMLButtonElement>(QUESTION_SUBMIT_SEL)
+  if (!labels.length || !submit) return
+
+  await log('TASK', `检测到答题弹窗，开始尝试 ${labels.length} 个选项`)
+  notifyPopup()
+
+  for (const label of labels) {
+    const latest = await getState()
+    if (latest.status !== 'running' || !document.contains(box)) return
+    label.click()
+    submit.click()
+    await delay(ANSWER_RETRY_MS)
+    if (!document.contains(box)) {
+      await log('INFO', '答题通过，继续播放')
+      notifyPopup()
+      playVideo()
+      return
+    }
+  }
+}
+
+function observeQuestion() {
+  const seen = new WeakSet<Element>()
+  const handle = () => {
+    const box = document.querySelector(QUESTION_SEL)
+    if (box && !seen.has(box)) {
+      seen.add(box)
+      answerQuestion(box)
+    }
+  }
+  handle()
+  new MutationObserver(handle).observe(document.documentElement, { childList: true, subtree: true })
+}
 
 function playVideo() {
   const v = document.querySelector(VIDEO_ID) as HTMLVideoElement | null
@@ -160,6 +207,8 @@ window.addEventListener('pagehide', clearPoll)
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) getState().then((s) => { if (s.status === 'running') tick() })
 })
+
+observeQuestion()
 
 getState().then((s) => {
   if (s.status === 'running') tick()
