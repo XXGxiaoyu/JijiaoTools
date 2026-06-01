@@ -5,8 +5,6 @@ import { STORAGE_KEY, defaultState, normalize, type TaskState, type LogLine } fr
 const state = ref<TaskState>(defaultState())
 const logsEl = ref<HTMLElement>()
 
-const version = chrome.runtime.getManifest().version
-
 const isRunning = computed(() => state.value.status === 'running')
 const statusText = computed(() =>
   state.value.status === 'running' ? '执行中' : state.value.status === 'done' ? '已完成' : '待机中'
@@ -78,15 +76,9 @@ async function clearConsole() {
         <h1 class="brand-name">JiJiaoTools</h1>
       </div>
       <div class="top-actions">
-        <div class="help-wrap">
-          <button class="icon-btn" type="button" aria-label="帮助" aria-describedby="help-tooltip">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M11 18h2v-2h-2v2Zm1-16a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16ZM12 6a4 4 0 0 0-4 4h2a2 2 0 1 1 4 0c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5a4 4 0 0 0-4-4Z"/></svg>
-          </button>
-          <div id="help-tooltip" class="help-tooltip" role="tooltip">
-            <strong>帮助与说明：</strong>
-            点击开始后，扩展会自动播放当前课程视频、监听暂停并恢复播放、按课程进度自动切换下一课；遇到答题弹窗时会依次尝试选项并提交，答题通过后继续播放。控制台会实时显示执行状态、答题与切课日志。
-          </div>
-        </div>
+        <button class="icon-btn" type="button" aria-label="帮助">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M11 18h2v-2h-2v2Zm1-16a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16ZM12 6a4 4 0 0 0-4 4h2a2 2 0 1 1 4 0c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5a4 4 0 0 0-4-4Z"/></svg>
+        </button>
         <button class="icon-btn" type="button" aria-label="设置">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="m19.14 12.94.06-.94-.06-.94 2.03-1.58a.5.5 0 0 0 .12-.61l-1.92-3.32a.5.5 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.49.49 0 0 0-.5-.42h-3.84a.49.49 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.59.22L2.74 8.87a.5.5 0 0 0 .12.61l2.03 1.58-.06.94.06.94-2.03 1.58a.5.5 0 0 0-.12.61l1.92 3.32c.13.22.39.31.59.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.09.46 0 .59-.22l1.92-3.32a.5.5 0 0 0-.12-.61l-2.03-1.58ZM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2Z"/></svg>
         </button>
@@ -136,7 +128,7 @@ async function clearConsole() {
 
     <footer class="footer">
       <div class="footer-left">
-        <span class="v">v{{ version }}</span>
+        <span class="v">v1.0.4</span>
         <span class="dot-sep" />
         <span class="v">{{ footerText }}</span>
       </div>
