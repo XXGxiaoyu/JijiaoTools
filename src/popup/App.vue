@@ -17,8 +17,15 @@ const footerText = computed(() => {
 })
 
 const logs = computed(() => {
-  const lines = state.value.logs.map((l: LogLine) => ({ time: l.time, type: l.level, text: l.text, muted: false }))
-  lines.push({ time: '', type: '' as never, text: '等待输入...', muted: true })
+  const progressText = `播放第 ${Math.min(state.value.index + 1, state.value.total || state.value.index + 1)} 门课 (${state.value.viewed}/${state.value.required} 分钟)`
+  const lines = state.value.logs.map((l: LogLine) => ({
+    id: l.id,
+    time: l.time,
+    type: l.level,
+    text: l.id === 'progress' ? progressText : l.text,
+    muted: false,
+  }))
+  lines.push({ id: undefined, time: '', type: '' as never, text: '等待输入...', muted: true })
   return lines
 })
 
@@ -123,7 +130,7 @@ async function clearConsole() {
         <div ref="logsEl" class="console-logs custom-scrollbar">
           <div
             v-for="(line, i) in logs"
-            :key="i"
+            :key="line.id ?? i"
             class="console-line"
             :class="{ muted: line.muted }"
           >

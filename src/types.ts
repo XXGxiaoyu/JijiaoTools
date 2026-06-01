@@ -2,6 +2,7 @@ export type TaskStatus = 'idle' | 'running' | 'done'
 export type LogLevel = 'INFO' | 'TASK' | 'WARN' | 'ERROR'
 
 export interface LogLine {
+  id?: string
   time: string
   level: LogLevel
   text: string
@@ -11,6 +12,8 @@ export interface TaskState {
   status: TaskStatus
   index: number
   total: number
+  viewed: number
+  required: number
   logs: LogLine[]
 }
 
@@ -20,6 +23,8 @@ export const defaultState = (): TaskState => ({
   status: 'idle',
   index: 0,
   total: 0,
+  viewed: 0,
+  required: 0,
   logs: [],
 })
 
@@ -30,6 +35,8 @@ export function normalize(raw: unknown): TaskState {
     status: s.status ?? d.status,
     index: typeof s.index === 'number' ? s.index : d.index,
     total: typeof s.total === 'number' ? s.total : d.total,
+    viewed: typeof s.viewed === 'number' ? s.viewed : d.viewed,
+    required: typeof s.required === 'number' ? s.required : d.required,
     logs: Array.isArray(s.logs) ? s.logs : d.logs,
   }
 }

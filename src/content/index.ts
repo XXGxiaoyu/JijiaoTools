@@ -3,6 +3,7 @@ import { STORAGE_KEY, defaultState, normalize, type TaskState, type LogLevel } f
 const COURSE_SEL = '.g-study-sd dd > a'
 const CURRENT_CLASS = 'z-crt'
 const REQUIRED_SEL = '.g-study-prompt span'
+const VIEWED_TEXT_SEL = '#viewTimeTxt'
 const VIEWED_SEL = '.g-study-prompt input'
 const POLL_MS = 5000
 const MAX_POLL_MS = 60 * 60 * 1000
@@ -26,9 +27,12 @@ function now() {
   return new Date().toTimeString().slice(0, 8)
 }
 
-async function log(level: LogLevel, text: string) {
+async function log(level: LogLevel, text: string, id?: string) {
   const s = await getState()
-  const logs = [...s.logs, { time: now(), level, text }].slice(-50)
+  const line = { id, time: now(), level, text }
+  const logs = id && s.logs.some((l) => l.id === id)
+    ? s.logs.map((l) => (l.id === id ? line : l))
+    : [...s.logs, line].slice(-50)
   await chrome.storage.local.set({ [STORAGE_KEY]: { ...s, logs } })
 }
 
@@ -45,6 +49,11 @@ function num(sel: string): number {
   const t = (el instanceof HTMLInputElement ? el.value : el?.textContent) ?? ''
   const n = parseFloat(t.replace(/[^\d.]/g, ''))
   return Number.isFinite(n) ? n : NaN
+}
+
+function viewedNum() {
+  const viewedText = num(VIEWED_TEXT_SEL)
+  return Number.isNaN(viewedText) ? num(VIEWED_SEL) : viewedText
 }
 
 const VIDEO_ID = '#video video'
@@ -151,9 +160,11 @@ function startPoll() {
     const s = await getState()
     if (s.status !== 'running') return clearPoll()
     if (Date.now() - pollStart > MAX_POLL_MS) return fail('单课观看超时')
-    const viewed = num(VIEWED_SEL)
+    const viewed = viewedNum()
     const required = num(REQUIRED_SEL)
     if (Number.isNaN(viewed) || Number.isNaN(required)) return
+    await setState({ viewed, required })
+    notifyPopup()
     if (viewed >= required) {
       await log('INFO', `已达标 (${viewed}/${required} 分钟)`)
       clearPoll()
@@ -183,15 +194,16 @@ async function tick() {
     return
   }
 
-  const viewed = num(VIEWED_SEL)
+  const viewed = viewedNum()
   const required = num(REQUIRED_SEL)
   if (Number.isNaN(viewed) || Number.isNaN(required)) return fail('无法读取观看时长')
+  await setState({ viewed, required })
 
   if (viewed >= required) {
     await log('INFO', `第 ${s.index + 1} 门课已达标 (${viewed}/${required} 分钟)`)
     advance()
   } else {
-    await log('TASK', `播放第 ${s.index + 1} 门课 (${viewed}/${required} 分钟)`)
+    await log('TASK', '播放课程中', 'progress')
     playVideo()
     startPoll()
   }
