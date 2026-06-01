@@ -1,6 +1,6 @@
 {
   "name": "jijiao-tools",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Chrome/Edge browser extension built with Vue3",
   "type": "module",
   "scripts": {
