@@ -51,8 +51,15 @@ const VIDEO_ID = '#video video'
 
 function playVideo() {
   const v = document.querySelector(VIDEO_ID) as HTMLVideoElement | null
-  console.log('video element', v)
-  v?.play().catch(() => {})
+  if (!v) return
+  if (!v.dataset.jjBound) {
+    v.dataset.jjBound = '1'
+    v.addEventListener('pause', async () => {
+      const s = await getState()
+      if (s.status === 'running') v.play().catch(() => {})
+    })
+  }
+  v.play().catch(() => {})
 }
 
 function clearPoll() {

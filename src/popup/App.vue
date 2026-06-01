@@ -10,7 +10,7 @@ const statusText = computed(() =>
   state.value.status === 'running' ? '执行中' : state.value.status === 'done' ? '已完成' : '待机中'
 )
 const footerText = computed(() => {
-  if (state.value.total) return `进度 ${Math.min(state.value.index, state.value.total)}/${state.value.total}`
+  if (state.value.total) return `进度 ${Math.min(state.value.index + 1, state.value.total)}/${state.value.total}`
   return state.value.status === 'running' ? '正在执行' : '系统就绪'
 })
 
