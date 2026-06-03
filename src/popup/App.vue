@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { STORAGE_KEY, defaultState, normalize, type TaskState, type LogLine } from '../types'
+import { STORAGE_KEY, SETTINGS_KEY, defaultSettings, defaultState, normalize, normalizeSettings, type TaskSettings, type TaskState, type LogLine } from '../types'
 
 const state = ref<TaskState>(defaultState())
+const settings = ref<TaskSettings>(defaultSettings())
+const settingsOpen = ref(false)
 const logsEl = ref<HTMLElement>()
 
 const version = chrome.runtime.getManifest().version
@@ -32,6 +34,7 @@ const logs = computed(() => {
 function typeColor(t: string) {
   if (t === 'INFO') return 'c-primary'
   if (t === 'TASK') return 'c-secondary'
+  if (t === 'DEBUG') return 'c-debug'
   if (t === 'SUCCESS') return 'c-tertiary'
   if (t === 'WARN' || t === 'ERROR') return 'c-error'
   return ''
@@ -42,9 +45,23 @@ async function loadState() {
   state.value = normalize(r[STORAGE_KEY])
 }
 
+async function loadSettings() {
+  const r = await chrome.storage.local.get([SETTINGS_KEY])
+  settings.value = normalizeSettings(r[SETTINGS_KEY])
+}
+
+async function saveSettings(patch: Partial<TaskSettings>) {
+  const next = { ...settings.value, ...patch }
+  settings.value = next
+  await chrome.storage.local.set({ [SETTINGS_KEY]: next })
+}
+
 function onStorage(changes: Record<string, chrome.storage.StorageChange>, area: string) {
   if (area === 'local' && changes[STORAGE_KEY]) {
     state.value = normalize(changes[STORAGE_KEY].newValue)
+  }
+  if (area === 'local' && changes[SETTINGS_KEY]) {
+    settings.value = normalizeSettings(changes[SETTINGS_KEY].newValue)
   }
 }
 
@@ -55,6 +72,7 @@ watch(logs, async () => {
 
 onMounted(() => {
   loadState()
+  loadSettings()
   chrome.storage.onChanged.addListener(onStorage)
 })
 onUnmounted(() => chrome.storage.onChanged.removeListener(onStorage))
@@ -67,7 +85,21 @@ async function toggle() {
   }
   const base = state.value.status === 'done' ? defaultState() : state.value
   await chrome.storage.local.set({ [STORAGE_KEY]: { ...base, status: 'running' } })
-  chrome.runtime.sendMessage({ type: 'START' })
+  chrome.runtime.sendMessage({ type: 'START', forceCurrent: settings.value.startFromCurrent })
+}
+
+async function setDebug(e: Event) {
+  await saveSettings({ debug: (e.target as HTMLInputElement).checked })
+}
+
+async function setStartFromCurrent(e: Event) {
+  await saveSettings({ startFromCurrent: (e.target as HTMLInputElement).checked })
+}
+
+async function clearCache() {
+  const next = defaultState()
+  state.value = next
+  await chrome.storage.local.set({ [STORAGE_KEY]: next })
 }
 
 async function clearConsole() {
@@ -94,11 +126,64 @@ async function clearConsole() {
             点击开始后，扩展会自动播放当前课程视频、监听暂停并恢复播放、按课程进度自动切换下一课；遇到答题弹窗时会依次尝试选项并提交，答题通过后继续播放。控制台会实时显示执行状态、答题与切课日志。
           </div>
         </div>
-        <button class="icon-btn" type="button" aria-label="设置">
+        <button class="icon-btn" type="button" aria-label="设置" @click="settingsOpen = true">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="m19.14 12.94.06-.94-.06-.94 2.03-1.58a.5.5 0 0 0 .12-.61l-1.92-3.32a.5.5 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.49.49 0 0 0-.5-.42h-3.84a.49.49 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.59.22L2.74 8.87a.5.5 0 0 0 .12.61l2.03 1.58-.06.94.06.94-2.03 1.58a.5.5 0 0 0-.12.61l1.92 3.32c.13.22.39.31.59.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.09.46 0 .59-.22l1.92-3.32a.5.5 0 0 0-.12-.61l-2.03-1.58ZM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2Z"/></svg>
         </button>
       </div>
     </header>
+
+    <div
+      class="drawer-overlay"
+      :class="{ 'is-open': settingsOpen }"
+      @click="settingsOpen = false"
+    />
+    <aside class="settings-drawer" :class="{ 'is-open': settingsOpen }" aria-label="设置">
+      <div class="drawer-head">
+        <h2 class="drawer-title">设置</h2>
+        <button class="icon-btn" type="button" aria-label="关闭设置" @click="settingsOpen = false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.7 19.3 3.3 17.9 9.2 12 3.3 6.1 4.7 4.7l5.9 5.9 6.3-6.3z"/></svg>
+        </button>
+      </div>
+      <div class="drawer-body custom-scrollbar">
+        <div class="setting-list">
+          <label class="setting-item">
+            <span>
+              <span class="setting-title">Debug 模式</span>
+              <span class="setting-desc">显示详细运行日志</span>
+            </span>
+            <span class="switch">
+              <input
+                type="checkbox"
+                :checked="settings.debug"
+                @change="setDebug"
+              >
+              <span class="slider" />
+            </span>
+          </label>
+          <label class="setting-item">
+            <span>
+              <span class="setting-title">从当前视频开始</span>
+              <span class="setting-desc">启动时跳过前面的课程</span>
+            </span>
+            <span class="switch">
+              <input
+                type="checkbox"
+                :checked="settings.startFromCurrent"
+                @change="setStartFromCurrent"
+              >
+              <span class="slider" />
+            </span>
+          </label>
+        </div>
+        <div class="drawer-actions">
+          <button class="cache-btn" type="button" @click="clearCache">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V7H6v12ZM8 9h8v10H8V9Zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5Z"/></svg>
+            清除缓存
+          </button>
+        </div>
+      </div>
+      <div class="drawer-foot">JiJiaoTools Engine v{{ version }}</div>
+    </aside>
 
     <main class="body">
       <div class="action-card">

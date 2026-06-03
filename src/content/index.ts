@@ -1,4 +1,4 @@
-import { STORAGE_KEY, defaultState, normalize, type TaskState, type LogLevel } from '../types'
+import { STORAGE_KEY, SETTINGS_KEY, defaultState, normalize, normalizeSettings, type TaskState, type LogLevel, type Msg } from '../types'
 
 const COURSE_SEL = '.g-study-sd dd > a'
 const CURRENT_CLASS = 'z-crt'
@@ -10,10 +10,16 @@ const MAX_POLL_MS = 60 * 60 * 1000
 
 let pollTimer: number | undefined
 let pollStart = 0
+let forceCurrentStart = false
 
 async function getState(): Promise<TaskState> {
   const r = await chrome.storage.local.get(STORAGE_KEY)
   return normalize(r[STORAGE_KEY])
+}
+
+async function getSettings() {
+  const r = await chrome.storage.local.get([SETTINGS_KEY])
+  return normalizeSettings(r[SETTINGS_KEY])
 }
 
 async function setState(patch: Partial<TaskState>) {
@@ -34,6 +40,11 @@ async function log(level: LogLevel, text: string, id?: string) {
     ? s.logs.map((l) => (l.id === id ? line : l))
     : [...s.logs, line].slice(-50)
   await chrome.storage.local.set({ [STORAGE_KEY]: { ...s, logs } })
+}
+
+async function debugLog(text: string, id?: string) {
+  const settings = await getSettings()
+  if (settings.debug) await log('DEBUG', text, id)
 }
 
 function courses(): HTMLAnchorElement[] {
@@ -72,14 +83,19 @@ async function answerQuestion(box: Element) {
 
   const labels = Array.from(document.querySelectorAll<HTMLLabelElement>(QUESTION_OPTION_SEL))
   const submit = document.querySelector<HTMLButtonElement>(QUESTION_SUBMIT_SEL)
-  if (!labels.length || !submit) return
+  if (!labels.length || !submit) {
+    await debugLog(`答题弹窗信息不完整：options=${labels.length}, submit=${Boolean(submit)}`)
+    return
+  }
 
   await log('TASK', `检测到答题弹窗，开始尝试 ${labels.length} 个选项`)
   notifyPopup()
 
-  for (const label of labels) {
+  for (let i = 0; i < labels.length; i += 1) {
+    const label = labels[i]
     const latest = await getState()
     if (latest.status !== 'running' || !document.contains(box)) return
+    await debugLog(`尝试答题选项 ${i + 1}/${labels.length}`)
     label.click()
     submit.click()
     await delay(ANSWER_RETRY_MS)
@@ -107,15 +123,21 @@ function observeQuestion() {
 
 function playVideo() {
   const v = document.querySelector(VIDEO_ID) as HTMLVideoElement | null
-  if (!v) return
+  if (!v) {
+    debugLog('未找到 video 元素，暂时无法播放')
+    return
+  }
   if (!v.dataset.jjBound) {
     v.dataset.jjBound = '1'
     v.addEventListener('pause', async () => {
       const s = await getState()
-      if (s.status === 'running') v.play().catch(() => {})
+      if (s.status === 'running') {
+        await debugLog('检测到视频暂停，尝试恢复播放')
+        v.play().catch(() => debugLog('视频自动恢复播放失败'))
+      }
     })
   }
-  v.play().catch(() => {})
+  v.play().catch(() => debugLog('视频播放失败'))
 }
 
 function clearPoll() {
@@ -156,12 +178,14 @@ async function advance() {
 function startPoll() {
   clearPoll()
   pollStart = Date.now()
+  debugLog(`开始轮询观看进度，间隔 ${POLL_MS}ms`)
   pollTimer = window.setInterval(async () => {
     const s = await getState()
     if (s.status !== 'running') return clearPoll()
     if (Date.now() - pollStart > MAX_POLL_MS) return fail('单课观看超时')
     const viewed = viewedNum()
     const required = num(REQUIRED_SEL)
+    await debugLog(`轮询观看时长：viewed=${Number.isNaN(viewed) ? 'NaN' : viewed}, required=${Number.isNaN(required) ? 'NaN' : required}`, 'poll-debug')
     if (Number.isNaN(viewed) || Number.isNaN(required)) return
     await setState({ viewed, required })
     notifyPopup()
@@ -178,29 +202,48 @@ async function tick() {
   if (s.status !== 'running') return
   const list = courses()
   if (!list.length) return fail('未找到课程列表')
-  if (!s.total) await setState({ total: list.length })
 
-  if (s.index >= (s.total || list.length)) {
+  let index = s.index
+  let total = s.total || list.length
+  const settings = await getSettings()
+  const domIdx = currentDomIndex(list)
+  await debugLog(`任务状态：index=${s.index}, total=${s.total}, domIndex=${domIdx}, courses=${list.length}, forceCurrent=${forceCurrentStart}`)
+
+  if (forceCurrentStart && settings.startFromCurrent && domIdx >= 0) {
+    index = domIdx
+    total = list.length
+    forceCurrentStart = false
+    await setState({ total, index, viewed: 0, required: 0 })
+    await debugLog(`从当前高亮课程强制启动：index=${index}, total=${total}`)
+  } else if (!s.total) {
+    if (settings.startFromCurrent && domIdx >= 0) index = domIdx
+    await setState({ total: list.length, index })
+    await debugLog(`初始化课程进度：index=${index}, total=${list.length}`)
+  } else {
+    forceCurrentStart = false
+  }
+
+  if (index >= total) {
     await setState({ status: 'done' })
     await log('INFO', '全部课程已完成，任务停止')
     notifyPopup()
     return
   }
 
-  const domIdx = currentDomIndex(list)
-  if (domIdx !== s.index) {
-    await log('TASK', `跳转到第 ${s.index + 1} 门课`)
-    list[s.index].click()
+  if (domIdx !== index) {
+    await log('TASK', `跳转到第 ${index + 1} 门课`)
+    list[index].click()
     return
   }
 
   const viewed = viewedNum()
   const required = num(REQUIRED_SEL)
+  await debugLog(`读取观看时长：viewed=${Number.isNaN(viewed) ? 'NaN' : viewed}, required=${Number.isNaN(required) ? 'NaN' : required}`)
   if (Number.isNaN(viewed) || Number.isNaN(required)) return fail('无法读取观看时长')
   await setState({ viewed, required })
 
   if (viewed >= required) {
-    await log('INFO', `第 ${s.index + 1} 门课已达标 (${viewed}/${required} 分钟)`)
+    await log('INFO', `第 ${index + 1} 门课已达标 (${viewed}/${required} 分钟)`)
     advance()
   } else {
     await log('TASK', '播放课程中', 'progress')
@@ -209,9 +252,14 @@ async function tick() {
   }
 }
 
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type === 'START') tick()
-  else if (msg?.type === 'STOP') clearPoll()
+chrome.runtime.onMessage.addListener((msg: Msg) => {
+  if (msg?.type === 'START') {
+    forceCurrentStart = Boolean(msg.forceCurrent)
+    tick()
+  } else if (msg?.type === 'STOP') {
+    forceCurrentStart = false
+    clearPoll()
+  }
   return false
 })
 

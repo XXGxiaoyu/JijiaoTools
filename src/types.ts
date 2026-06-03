@@ -1,5 +1,5 @@
 export type TaskStatus = 'idle' | 'running' | 'done'
-export type LogLevel = 'INFO' | 'TASK' | 'WARN' | 'ERROR'
+export type LogLevel = 'INFO' | 'TASK' | 'DEBUG' | 'WARN' | 'ERROR'
 
 export interface LogLine {
   id?: string
@@ -18,6 +18,17 @@ export interface TaskState {
 }
 
 export const STORAGE_KEY = 'jjAutoTask'
+export const SETTINGS_KEY = 'jjAutoSettings'
+
+export interface TaskSettings {
+  debug: boolean
+  startFromCurrent: boolean
+}
+
+export const defaultSettings = (): TaskSettings => ({
+  debug: false,
+  startFromCurrent: true,
+})
 
 export const defaultState = (): TaskState => ({
   status: 'idle',
@@ -41,7 +52,16 @@ export function normalize(raw: unknown): TaskState {
   }
 }
 
+export function normalizeSettings(raw: unknown): TaskSettings {
+  const d = defaultSettings()
+  const s = (raw ?? {}) as Partial<TaskSettings>
+  return {
+    debug: typeof s.debug === 'boolean' ? s.debug : d.debug,
+    startFromCurrent: typeof s.startFromCurrent === 'boolean' ? s.startFromCurrent : d.startFromCurrent,
+  }
+}
+
 export type Msg =
-  | { type: 'START' }
+  | { type: 'START'; forceCurrent?: boolean }
   | { type: 'STOP' }
   | { type: 'STATE_CHANGED' }
